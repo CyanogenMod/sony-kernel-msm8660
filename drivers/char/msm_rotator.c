@@ -1602,6 +1602,13 @@ static int __devinit msm_rotator_probe(struct platform_device *pdev)
 	pr_info("%s: rotator_hw_revision=%x\n",
 		__func__, rotator_hw_revision);
 
+	rotator_hw_revision = ver;
+	rotator_hw_revision >>= 16;     /* bit 31:16 */
+	rotator_hw_revision &= 0xff;
+
+	pr_info("%s: rotator_hw_revision=%x\n",
+		__func__, rotator_hw_revision);
+
 	msm_rotator_dev->irq = platform_get_irq(pdev, 0);
 	if (msm_rotator_dev->irq < 0) {
 		printk(KERN_ALERT "%s: could not get IORESOURCE_IRQ\n",
