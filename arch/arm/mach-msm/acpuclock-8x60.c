@@ -973,7 +973,7 @@ static __init struct clkctl_acpu_speed *select_freq_plan(void)
 			break;
 		}
 	} else if (speed_bin == 0x1) {
-		max_khz = 1512000;
+		max_khz = 1674000; //1512000;
 		switch (pvs) {
 		case 0x0:
 		case 0x7:
