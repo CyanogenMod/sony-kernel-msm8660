@@ -1996,10 +1996,11 @@ int pmem_cache_maint(struct file *file, unsigned int cmd,
 	}
 	pmem_len = pmem[id].len(id, data);
 	pmem_start_addr = pmem[id].start_addr(id, data);
-	up_read(&data->sem);
 
-	if (offset + length > pmem_len)
+	if (offset + length > pmem_len) {
+		up_read(&data->sem);
 		return -EINVAL;
+	}
 
 	vaddr = pmem_addr->vaddr;
 	paddr = pmem_start_addr + offset;
@@ -2014,7 +2015,7 @@ int pmem_cache_maint(struct file *file, unsigned int cmd,
 		clean_caches(vaddr, length, paddr);
 	else if (cmd == PMEM_INV_CACHES)
 		invalidate_caches(vaddr, length, paddr);
-
+	up_read(&data->sem);
 	return 0;
 }
 EXPORT_SYMBOL(pmem_cache_maint);

@@ -3055,7 +3055,7 @@ static void shared_vreg_switch(int enable)
 			goto exit_free_reg_10;
 		}
 
-#if defined(CONFIG_MACH_SEMC_AOBA)
+		/* add fix workaround for proximity sun-shine bug ==>*/
 		mdelay(10);
 		rc = regulator_disable(vreg_l10);
 		if (rc) {
@@ -3074,7 +3074,7 @@ static void shared_vreg_switch(int enable)
 			pr_err("%s: vreg_enable failed\n", __func__);
 			goto exit_free_reg_10;
 		}
-#endif
+		/* add fix workaround for proximity sun-shine bug <==*/
 
 		mdelay(10); /* Device Spec */
 		rc = regulator_set_voltage(vreg_l8, VREG8_VDDIO_VOLTAGE,

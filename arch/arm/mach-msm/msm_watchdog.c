@@ -27,6 +27,7 @@
 #include <asm/mach-types.h>
 #include <mach/scm.h>
 #include <mach/socinfo.h>
+#include <linux/hrtimer.h>
 #include "msm_watchdog.h"
 #include "timer.h"
 
@@ -44,7 +45,7 @@
 
 static void __iomem *msm_tmr0_base;
 
-static unsigned long delay_time;
+static unsigned long long delay_time;
 static unsigned long bark_time;
 static unsigned long long last_pet;
 
@@ -95,10 +96,11 @@ unsigned scm_regsave_pa;
 
 static struct msm_watchdog_pdata __percpu **percpu_pdata;
 
-static void pet_watchdog_fn(unsigned long data);
+static enum hrtimer_restart pet_watchdog_fn(struct hrtimer *data);
 static void init_watchdog_work(struct work_struct *work);
 static DECLARE_WORK(init_dogwork_struct, init_watchdog_work);
-static struct timer_list wdog_timer;
+
+static struct hrtimer wdog_timer;
 
 static int msm_watchdog_suspend(struct device *dev)
 {
@@ -172,7 +174,7 @@ static int wdog_enable_set(const char *val, struct kernel_param *kp)
 			enable = 0;
 			atomic_notifier_chain_unregister(&panic_notifier_list,
 			       &panic_blk);
-			del_timer(&wdog_timer);
+			hrtimer_cancel(&wdog_timer);
 			/* may be suspended after the first write above */
 			__raw_writel(0, msm_tmr0_base + WDT0_EN);
 			printk(KERN_INFO "MSM Watchdog deactivated.\n");
@@ -213,14 +215,14 @@ void pet_watchdog(void)
 	last_pet = time_ns;
 }
 
-static void pet_watchdog_fn(unsigned long data)
+static enum hrtimer_restart pet_watchdog_fn(struct hrtimer *timer)
 {
 	pet_watchdog();
 
 	if (enable) {
-		wdog_timer.expires += delay_time;
-		add_timer_on(&wdog_timer, 0);
+		hrtimer_forward_now(timer, ns_to_ktime(delay_time));
 	}
+	return HRTIMER_RESTART;
 }
 
 static int wdog_init_done;
@@ -233,7 +235,7 @@ void touch_nmi_watchdog(void)
 		return;
 
 	ns = sched_clock() - last_pet;
-	if (nsecs_to_jiffies(ns) > delay_time)
+	if (ns > delay_time)
 		pet_watchdog();
 
 	touch_softlockup_watchdog();
@@ -337,10 +339,9 @@ static void init_watchdog_work(struct work_struct *work)
 	__raw_writel(timeout, msm_tmr0_base + WDT0_BARK_TIME);
 	__raw_writel(timeout + 3*WDT_HZ, msm_tmr0_base + WDT0_BITE_TIME);
 
-	init_timer(&wdog_timer);
+	hrtimer_init(&wdog_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	wdog_timer.function = pet_watchdog_fn;
-	wdog_timer.expires = jiffies + delay_time;
-	add_timer_on(&wdog_timer, 0);
+	hrtimer_start(&wdog_timer, ns_to_ktime(delay_time), HRTIMER_MODE_REL);
 
 	atomic_notifier_chain_register(&panic_notifier_list,
 				       &panic_blk);
@@ -397,7 +398,8 @@ static int msm_watchdog_probe(struct platform_device *pdev)
 	if (cpu_is_msm9615())
 		__raw_writel(0xF, MSM_TCSR_BASE + TCSR_WDT_CFG);
 
-	delay_time = msecs_to_jiffies(pdata->pet_time);
+	delay_time = pdata->pet_time;
+	delay_time = delay_time*1000000;
 	schedule_work_on(0, &init_dogwork_struct);
 	return 0;
 }
